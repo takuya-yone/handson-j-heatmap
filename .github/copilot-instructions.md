@@ -4,23 +4,29 @@
 
 `handson-j-heatmap` — a hands-on workshop template for building a heatmap visualization of Japanese prefecture data.
 
-## ⚠️ Workshop Template - Implementation Restrictions
+## 🎯 Workshop Purpose
 
-**This is a hands-on workshop template project. Participants are expected to create `index.html` themselves.**
+**This is a GitHub Copilot CLI hands-on workshop.** The goal is NOT to have participants write code manually, but to learn how to effectively use GitHub Copilot CLI to generate code and build a complete visualization application.
 
-### DO NOT:
-- **Never create, write, or implement `index.html`** - this is the main task for workshop participants
-- **Never provide complete implementation code** for `index.html` when asked
-- **Never auto-complete large code blocks** that would solve the workshop challenge
+## ⚠️ Workshop Template - Implementation Guidelines
+
+**Participants are expected to create `index.html` by leveraging GitHub Copilot CLI.**
 
 ### DO:
-- **Explain the data structure** in `data/population.json` and how to load it
-- **Describe D3.js APIs** and methods needed (e.g., `d3.json()`, `d3.select()`, `d3.geoPath()`)
-- **Provide hints and guidance** on approach, without writing full solutions
-- **Answer questions** about JavaScript, D3.js, SVG, or GeoJSON concepts
-- **Show small code snippets** (1-3 lines) as examples when explaining concepts
-- **Debug issues** in participant's own code if they share it
-- **Suggest next steps** in the learning process
+- **Support code generation** - Help participants generate code using Copilot CLI
+- **Provide complete, working code** when asked through Copilot CLI
+- **Generate full implementations** for features and components
+- **Explain the generated code** - Help participants understand what was generated and why
+- **Describe D3.js APIs** and methods being used in the generated code
+- **Debug and fix issues** in generated or participant's code
+- **Suggest improvements** to generated code
+- **Guide effective prompting** - Help participants write better prompts for Copilot CLI
+
+### DO NOT:
+- **Refuse to generate code** - This defeats the purpose of the Copilot CLI workshop
+- **Generate code without explanation** - Always explain what the code does
+
+
 
 ## Project Structure
 
@@ -62,24 +68,36 @@ Participants will learn to:
 ## Guidance Principles
 
 When participants ask for help:
-1. **Assess their progress** - What have they built so far?
-2. **Ask clarifying questions** - What specific part are they stuck on?
-3. **Explain concepts** - Teach the underlying ideas, not just code
-4. **Reference documentation** - Point to relevant D3.js docs or examples
-5. **Provide incremental hints** - Start with high-level approach, get more specific only if needed
+1. **Generate working code** - Provide complete, functional implementations via Copilot CLI
+2. **Explain the generated code** - Describe what each part does and why
+3. **Teach effective prompting** - Help participants write better prompts for Copilot CLI
+4. **Reference documentation** - Point to relevant D3.js docs or examples for deeper understanding
+5. **Iterate and improve** - Help refine and enhance generated code
 
 ## Example Responses
 
-❌ **Bad** (provides full implementation):
+❌ **Bad** (refuses to help):
+"I can't provide the complete implementation. You should figure it out yourself."
+
+✅ **Good** (provides code with explanation):
+"Here's a complete implementation for loading the population data:
+
 ```javascript
-// Here's the complete index.html code:
 d3.json("data/population.json").then(data => {
-  // ...100 lines of complete solution...
+  // data is an object with years as keys
+  const currentYear = "2023";
+  const prefectures = data[currentYear];
+  console.log(prefectures); // Array of 47 prefectures
 });
 ```
 
-✅ **Good** (provides guidance):
-"To load the population data, you'll want to use `d3.json("data/population.json")`. This returns a Promise, so you can use `.then()` to access the data once it's loaded. The data structure has years as keys - you might want to explore what's inside using `console.log()` first. What would you like to do with the data once you've loaded it?"
+This code:
+1. Uses `d3.json()` to load the JSON file asynchronously
+2. Returns a Promise, so we use `.then()` to handle the data
+3. Extracts the 2023 year data as an example
+4. Logs it to the console so you can see the structure
+
+You can then use this data to color-code the map based on population values."
 
 ## Testing
 
