@@ -36,7 +36,7 @@ export function JapanMap({ geoJson, populationData, year, globalMax, onTooltipCh
       .data(geoJson.features)
       .join('path')
       .attr('class', 'prefecture')
-      .attr('d', pathGen)
+      .attr('d', d => pathGen(d as d3.GeoPermissibleObjects))
       .attr('stroke', '#2a2a4a')
       .attr('stroke-width', 0.5)
       .style('cursor', 'pointer')
