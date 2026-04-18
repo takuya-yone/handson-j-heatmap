@@ -11,7 +11,8 @@ yarn.lock
 # pnpm
 .pnpm-store/
 
-# Logs
+# Local deploy config (contains secrets)
+.env.deploy
 *.log
 npm-debug.log*
 

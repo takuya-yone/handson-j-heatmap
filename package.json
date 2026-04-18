@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "deploy:aws": "./scripts/deploy-aws.sh",
     "preview": "vite preview"
   },
   "dependencies": {
