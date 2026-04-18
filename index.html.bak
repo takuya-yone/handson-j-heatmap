@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>日本都道府県別人口ヒートマップ</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      margin-bottom: 16px;
+      color: #a8d8ea;
+      letter-spacing: 0.05em;
+    }
+
+    #controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    #controls label {
+      font-size: 0.95rem;
+      color: #ccc;
+    }
+
+    #yearSelect {
+      padding: 6px 12px;
+      font-size: 1rem;
+      border-radius: 6px;
+      border: 1px solid #4a6fa5;
+      background: #16213e;
+      color: #e0e0e0;
+      cursor: pointer;
+    }
+
+    #yearSelect:focus {
+      outline: 2px solid #a8d8ea;
+    }
+
+    #map-container {
+      position: relative;
+      width: 100%;
+      max-width: 960px;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .prefecture {
+      stroke: #2a2a4a;
+      stroke-width: 0.5;
+      transition: opacity 0.15s;
+      cursor: pointer;
+    }
+
+    .prefecture:hover {
+      opacity: 0.75;
+      stroke: #ffffff;
+      stroke-width: 1.2;
+    }
+
+    #tooltip {
+      position: fixed;
+      background: rgba(22, 33, 62, 0.95);
+      border: 1px solid #4a6fa5;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.9rem;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.1s;
+      z-index: 100;
+      line-height: 1.6;
+    }
+
+    #tooltip .name {
+      font-weight: bold;
+      font-size: 1rem;
+      color: #a8d8ea;
+    }
+
+    #tooltip .pop {
+      color: #e0e0e0;
+    }
+
+    #legend-container {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    #legend-container span {
+      font-size: 0.8rem;
+      color: #aaa;
+    }
+
+    #source {
+      margin-top: 16px;
+      font-size: 0.75rem;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <h1>🗾 日本都道府県別人口ヒートマップ</h1>
+
+  <div id="controls">
+    <label for="yearSelect">表示年：</label>
+    <select id="yearSelect"></select>
+  </div>
+
+  <div id="map-container">
+    <svg id="map" viewBox="0 0 960 600" preserveAspectRatio="xMidYMid meet"></svg>
+  </div>
+
+  <div id="legend-container">
+    <svg id="legend" width="360" height="50"></svg>
+    <span>人口（万人）</span>
+  </div>
+
+  <div id="tooltip"></div>
+
+  <p id="source">データ出典: e-Stat 政府統計の総合窓口（国勢調査）</p>
+
+  <script>
+    // ========== 埋め込み人口データ (data/population.json) ==========
+    const POPULATION_DATA = {"2023":[{"id":1,"name":"北海道","population":5094404},{"id":2,"name":"青森県","population":1184315},{"id":3,"name":"岩手県","population":1164998},{"id":4,"name":"宮城県","population":2261944},{"id":5,"name":"秋田県","population":914603},{"id":6,"name":"山形県","population":1027173},{"id":7,"name":"福島県","population":1765476},{"id":8,"name":"茨城県","population":2824330},{"id":9,"name":"栃木県","population":1902047},{"id":10,"name":"群馬県","population":1897368},{"id":11,"name":"埼玉県","population":7331252},{"id":12,"name":"千葉県","population":6271911},{"id":13,"name":"東京都","population":14095066},{"id":14,"name":"神奈川県","population":9239857},{"id":15,"name":"新潟県","population":2128761},{"id":16,"name":"富山県","population":1002340},{"id":17,"name":"石川県","population":1111623},{"id":18,"name":"福井県","population":742562},{"id":19,"name":"山梨県","population":800049},{"id":20,"name":"長野県","population":2003882},{"id":21,"name":"岐阜県","population":1920803},{"id":22,"name":"静岡県","population":3550388},{"id":23,"name":"愛知県","population":7480579},{"id":24,"name":"三重県","population":1714856},{"id":25,"name":"滋賀県","population":1407849},{"id":26,"name":"京都府","population":2530114},{"id":27,"name":"大阪府","population":8769351},{"id":28,"name":"兵庫県","population":5369796},{"id":29,"name":"奈良県","population":1292723},{"id":30,"name":"和歌山県","population":893323},{"id":31,"name":"鳥取県","population":537877},{"id":32,"name":"島根県","population":640733},{"id":33,"name":"岡山県","population":1842526},{"id":34,"name":"広島県","population":2741913},{"id":35,"name":"山口県","population":1289139},{"id":36,"name":"徳島県","population":692750},{"id":37,"name":"香川県","population":927429},{"id":38,"name":"愛媛県","population":1292026},{"id":39,"name":"高知県","population":665972},{"id":40,"name":"福岡県","population":5104921},{"id":41,"name":"佐賀県","population":799146},{"id":42,"name":"長崎県","population":1262662},{"id":43,"name":"熊本県","population":1700676},{"id":44,"name":"大分県","population":1092683},{"id":45,"name":"宮崎県","population":1040854},{"id":46,"name":"鹿児島県","population":1541818},{"id":47,"name":"沖縄県","population":1469145}],"2020":[{"id":1,"name":"北海道","population":5224614},{"id":2,"name":"青森県","population":1237984},{"id":3,"name":"岩手県","population":1210534},{"id":4,"name":"宮城県","population":2301996},{"id":5,"name":"秋田県","population":959502},{"id":6,"name":"山形県","population":1068027},{"id":7,"name":"福島県","population":1833152},{"id":8,"name":"茨城県","population":2867009},{"id":9,"name":"栃木県","population":1933146},{"id":10,"name":"群馬県","population":1939110},{"id":11,"name":"埼玉県","population":7344765},{"id":12,"name":"千葉県","population":6284480},{"id":13,"name":"東京都","population":14047594},{"id":14,"name":"神奈川県","population":9237337},{"id":15,"name":"新潟県","population":2201272},{"id":16,"name":"富山県","population":1034814},{"id":17,"name":"石川県","population":1132847},{"id":18,"name":"福井県","population":766863},{"id":19,"name":"山梨県","population":809974},{"id":20,"name":"長野県","population":2048011},{"id":21,"name":"岐阜県","population":1978782},{"id":22,"name":"静岡県","population":3633202},{"id":23,"name":"愛知県","population":7542415},{"id":24,"name":"三重県","population":1770254},{"id":25,"name":"滋賀県","population":1413610},{"id":26,"name":"京都府","population":2578087},{"id":27,"name":"大阪府","population":8837685},{"id":28,"name":"兵庫県","population":5469762},{"id":29,"name":"奈良県","population":1324473},{"id":30,"name":"和歌山県","population":922584},{"id":31,"name":"鳥取県","population":553407},{"id":32,"name":"島根県","population":671126},{"id":33,"name":"岡山県","population":1888432},{"id":34,"name":"広島県","population":2800331},{"id":35,"name":"山口県","population":1342059},{"id":36,"name":"徳島県","population":719559},{"id":37,"name":"香川県","population":950244},{"id":38,"name":"愛媛県","population":1334841},{"id":39,"name":"高知県","population":691527},{"id":40,"name":"福岡県","population":5135214},{"id":41,"name":"佐賀県","population":811442},{"id":42,"name":"長崎県","population":1312317},{"id":43,"name":"熊本県","population":1738301},{"id":44,"name":"大分県","population":1126992},{"id":45,"name":"宮崎県","population":1069576},{"id":46,"name":"鹿児島県","population":1588256},{"id":47,"name":"沖縄県","population":1467480}],"2015":[{"id":1,"name":"北海道","population":5381733},{"id":2,"name":"青森県","population":1308265},{"id":3,"name":"岩手県","population":1279594},{"id":4,"name":"宮城県","population":2333899},{"id":5,"name":"秋田県","population":1023119},{"id":6,"name":"山形県","population":1123891},{"id":7,"name":"福島県","population":1914039},{"id":8,"name":"茨城県","population":2916976},{"id":9,"name":"栃木県","population":1974255},{"id":10,"name":"群馬県","population":1973115},{"id":11,"name":"埼玉県","population":7266534},{"id":12,"name":"千葉県","population":6222666},{"id":13,"name":"東京都","population":13515271},{"id":14,"name":"神奈川県","population":9126214},{"id":15,"name":"新潟県","population":2304264},{"id":16,"name":"富山県","population":1066328},{"id":17,"name":"石川県","population":1154343},{"id":18,"name":"福井県","population":786740},{"id":19,"name":"山梨県","population":834930},{"id":20,"name":"長野県","population":2098804},{"id":21,"name":"岐阜県","population":2031903},{"id":22,"name":"静岡県","population":3700305},{"id":23,"name":"愛知県","population":7483128},{"id":24,"name":"三重県","population":1815865},{"id":25,"name":"滋賀県","population":1412916},{"id":26,"name":"京都府","population":2610353},{"id":27,"name":"大阪府","population":8839469},{"id":28,"name":"兵庫県","population":5534800},{"id":29,"name":"奈良県","population":1364316},{"id":30,"name":"和歌山県","population":963579},{"id":31,"name":"鳥取県","population":573441},{"id":32,"name":"島根県","population":694352},{"id":33,"name":"岡山県","population":1921525},{"id":34,"name":"広島県","population":2843990},{"id":35,"name":"山口県","population":1404729},{"id":36,"name":"徳島県","population":755733},{"id":37,"name":"香川県","population":976263},{"id":38,"name":"愛媛県","population":1385262},{"id":39,"name":"高知県","population":728278},{"id":40,"name":"福岡県","population":5101556},{"id":41,"name":"佐賀県","population":832832},{"id":42,"name":"長崎県","population":1377187},{"id":43,"name":"熊本県","population":1786170},{"id":44,"name":"大分県","population":1166338},{"id":45,"name":"宮崎県","population":1104069},{"id":46,"name":"鹿児島県","population":1648177},{"id":47,"name":"沖縄県","population":1433566}],"2010":[{"id":1,"name":"北海道","population":5506419},{"id":2,"name":"青森県","population":1373339},{"id":3,"name":"岩手県","population":1330146},{"id":4,"name":"宮城県","population":2348165},{"id":5,"name":"秋田県","population":1085997},{"id":6,"name":"山形県","population":1168924},{"id":7,"name":"福島県","population":2029064},{"id":8,"name":"茨城県","population":2969770},{"id":9,"name":"栃木県","population":2007683},{"id":10,"name":"群馬県","population":2008068},{"id":11,"name":"埼玉県","population":7194556},{"id":12,"name":"千葉県","population":6216289},{"id":13,"name":"東京都","population":13159388},{"id":14,"name":"神奈川県","population":9048331},{"id":15,"name":"新潟県","population":2374450},{"id":16,"name":"富山県","population":1093247},{"id":17,"name":"石川県","population":1169788},{"id":18,"name":"福井県","population":806314},{"id":19,"name":"山梨県","population":863075},{"id":20,"name":"長野県","population":2152449},{"id":21,"name":"岐阜県","population":2080773},{"id":22,"name":"静岡県","population":3765007},{"id":23,"name":"愛知県","population":7410719},{"id":24,"name":"三重県","population":1854724},{"id":25,"name":"滋賀県","population":1410777},{"id":26,"name":"京都府","population":2636092},{"id":27,"name":"大阪府","population":8865245},{"id":28,"name":"兵庫県","population":5588133},{"id":29,"name":"奈良県","population":1400728},{"id":30,"name":"和歌山県","population":1002198},{"id":31,"name":"鳥取県","population":588667},{"id":32,"name":"島根県","population":717397},{"id":33,"name":"岡山県","population":1945276},{"id":34,"name":"広島県","population":2860750},{"id":35,"name":"山口県","population":1451338},{"id":36,"name":"徳島県","population":785491},{"id":37,"name":"香川県","population":995842},{"id":38,"name":"愛媛県","population":1431493},{"id":39,"name":"高知県","population":764456},{"id":40,"name":"福岡県","population":5071968},{"id":41,"name":"佐賀県","population":849788},{"id":42,"name":"長崎県","population":1426779},{"id":43,"name":"熊本県","population":1817426},{"id":44,"name":"大分県","population":1196529},{"id":45,"name":"宮崎県","population":1135233},{"id":46,"name":"鹿児島県","population":1706242},{"id":47,"name":"沖縄県","population":1392818}],"2005":[{"id":1,"name":"北海道","population":5627737},{"id":2,"name":"青森県","population":1436657},{"id":3,"name":"岩手県","population":1385041},{"id":4,"name":"宮城県","population":2360218},{"id":5,"name":"秋田県","population":1145501},{"id":6,"name":"山形県","population":1216181},{"id":7,"name":"福島県","population":2113045},{"id":8,"name":"茨城県","population":2985424},{"id":9,"name":"栃木県","population":2016631},{"id":10,"name":"群馬県","population":2024852},{"id":11,"name":"埼玉県","population":7054243},{"id":12,"name":"千葉県","population":6056462},{"id":13,"name":"東京都","population":12576601},{"id":14,"name":"神奈川県","population":8791597},{"id":15,"name":"新潟県","population":2431459},{"id":16,"name":"富山県","population":1111729},{"id":17,"name":"石川県","population":1174026},{"id":18,"name":"福井県","population":821592},{"id":19,"name":"山梨県","population":884515},{"id":20,"name":"長野県","population":2196114},{"id":21,"name":"岐阜県","population":2107687},{"id":22,"name":"静岡県","population":3792377},{"id":23,"name":"愛知県","population":7254704},{"id":24,"name":"三重県","population":1866963},{"id":25,"name":"滋賀県","population":1380343},{"id":26,"name":"京都府","population":2647660},{"id":27,"name":"大阪府","population":8817166},{"id":28,"name":"兵庫県","population":5590601},{"id":29,"name":"奈良県","population":1421310},{"id":30,"name":"和歌山県","population":1035969},{"id":31,"name":"鳥取県","population":607012},{"id":32,"name":"島根県","population":742223},{"id":33,"name":"岡山県","population":1957264},{"id":34,"name":"広島県","population":2878915},{"id":35,"name":"山口県","population":1492606},{"id":36,"name":"徳島県","population":809950},{"id":37,"name":"香川県","population":1003373},{"id":38,"name":"愛媛県","population":1467815},{"id":39,"name":"高知県","population":796292},{"id":40,"name":"福岡県","population":5049908},{"id":41,"name":"佐賀県","population":866369},{"id":42,"name":"長崎県","population":1478632},{"id":43,"name":"熊本県","population":1842236},{"id":44,"name":"大分県","population":1221128},{"id":45,"name":"宮崎県","population":1153042},{"id":46,"name":"鹿児島県","population":1753179},{"id":47,"name":"沖縄県","population":1367854}],"2000":[{"id":1,"name":"北海道","population":5683062},{"id":2,"name":"青森県","population":1475728},{"id":3,"name":"岩手県","population":1416180},{"id":4,"name":"宮城県","population":2365320},{"id":5,"name":"秋田県","population":1189279},{"id":6,"name":"山形県","population":1244147},{"id":7,"name":"福島県","population":2126938},{"id":8,"name":"茨城県","population":2985676},{"id":9,"name":"栃木県","population":2004817},{"id":10,"name":"群馬県","population":2024823},{"id":11,"name":"埼玉県","population":6938004},{"id":12,"name":"千葉県","population":5926285},{"id":13,"name":"東京都","population":12064101},{"id":14,"name":"神奈川県","population":8489974},{"id":15,"name":"新潟県","population":2475733},{"id":16,"name":"富山県","population":1120851},{"id":17,"name":"石川県","population":1180977},{"id":18,"name":"福井県","population":828944},{"id":19,"name":"山梨県","population":888172},{"id":20,"name":"長野県","population":2215000},{"id":21,"name":"岐阜県","population":2107700},{"id":22,"name":"静岡県","population":3767427},{"id":23,"name":"愛知県","population":7043300},{"id":24,"name":"三重県","population":1857339},{"id":25,"name":"滋賀県","population":1342832},{"id":26,"name":"京都府","population":2644391},{"id":27,"name":"大阪府","population":8805081},{"id":28,"name":"兵庫県","population":5550574},{"id":29,"name":"奈良県","population":1442795},{"id":30,"name":"和歌山県","population":1069912},{"id":31,"name":"鳥取県","population":613289},{"id":32,"name":"島根県","population":761503},{"id":33,"name":"岡山県","population":1950828},{"id":34,"name":"広島県","population":2876642},{"id":35,"name":"山口県","population":1528139},{"id":36,"name":"徳島県","population":824108},{"id":37,"name":"香川県","population":1012431},{"id":38,"name":"愛媛県","population":1493126},{"id":39,"name":"高知県","population":813876},{"id":40,"name":"福岡県","population":5015699},{"id":41,"name":"佐賀県","population":876654},{"id":42,"name":"長崎県","population":1516523},{"id":43,"name":"熊本県","population":1859345},{"id":44,"name":"大分県","population":1221159},{"id":45,"name":"宮崎県","population":1170014},{"id":46,"name":"鹿児島県","population":1786194},{"id":47,"name":"沖縄県","population":1318220}],"1995":[{"id":1,"name":"北海道","population":5692321},{"id":2,"name":"青森県","population":1481663},{"id":3,"name":"岩手県","population":1433611},{"id":4,"name":"宮城県","population":2345976},{"id":5,"name":"秋田県","population":1213644},{"id":6,"name":"山形県","population":1256958},{"id":7,"name":"福島県","population":2133592},{"id":8,"name":"茨城県","population":2955530},{"id":9,"name":"栃木県","population":1984391},{"id":10,"name":"群馬県","population":1999120},{"id":11,"name":"埼玉県","population":6759311},{"id":12,"name":"千葉県","population":5797782},{"id":13,"name":"東京都","population":11773605},{"id":14,"name":"神奈川県","population":8245900},{"id":15,"name":"新潟県","population":2488364},{"id":16,"name":"富山県","population":1126331},{"id":17,"name":"石川県","population":1180068},{"id":18,"name":"福井県","population":827299},{"id":19,"name":"山梨県","population":881996},{"id":20,"name":"長野県","population":2193988},{"id":21,"name":"岐阜県","population":2089667},{"id":22,"name":"静岡県","population":3737689},{"id":23,"name":"愛知県","population":6868336},{"id":24,"name":"三重県","population":1841734},{"id":25,"name":"滋賀県","population":1287105},{"id":26,"name":"京都府","population":2629592},{"id":27,"name":"大阪府","population":8797268},{"id":28,"name":"兵庫県","population":5401877},{"id":29,"name":"奈良県","population":1430862},{"id":30,"name":"和歌山県","population":1087037},{"id":31,"name":"鳥取県","population":614627},{"id":32,"name":"島根県","population":775765},{"id":33,"name":"岡山県","population":1954153},{"id":34,"name":"広島県","population":2881748},{"id":35,"name":"山口県","population":1555541},{"id":36,"name":"徳島県","population":831614},{"id":37,"name":"香川県","population":1007469},{"id":38,"name":"愛媛県","population":1506700},{"id":39,"name":"高知県","population":832885},{"id":40,"name":"福岡県","population":4933393},{"id":41,"name":"佐賀県","population":881944},{"id":42,"name":"長崎県","population":1544933},{"id":43,"name":"熊本県","population":1869371},{"id":44,"name":"大分県","population":1231362},{"id":45,"name":"宮崎県","population":1175819},{"id":46,"name":"鹿児島県","population":1804153},{"id":47,"name":"沖縄県","population":1273440}],"1990":[{"id":1,"name":"北海道","population":5643647},{"id":2,"name":"青森県","population":1482873},{"id":3,"name":"岩手県","population":1432435},{"id":4,"name":"宮城県","population":2248558},{"id":5,"name":"秋田県","population":1227478},{"id":6,"name":"山形県","population":1258883},{"id":7,"name":"福島県","population":2104047},{"id":8,"name":"茨城県","population":2845382},{"id":9,"name":"栃木県","population":1935165},{"id":10,"name":"群馬県","population":1966265},{"id":11,"name":"埼玉県","population":6405323},{"id":12,"name":"千葉県","population":5555033},{"id":13,"name":"東京都","population":11855563},{"id":14,"name":"神奈川県","population":7980391},{"id":15,"name":"新潟県","population":2478460},{"id":16,"name":"富山県","population":1120171},{"id":17,"name":"石川県","population":1165913},{"id":18,"name":"福井県","population":819663},{"id":19,"name":"山梨県","population":852932},{"id":20,"name":"長野県","population":2157147},{"id":21,"name":"岐阜県","population":2066579},{"id":22,"name":"静岡県","population":3670984},{"id":23,"name":"愛知県","population":6690603},{"id":24,"name":"三重県","population":1793094},{"id":25,"name":"滋賀県","population":1222411},{"id":26,"name":"京都府","population":2602460},{"id":27,"name":"大阪府","population":8734516},{"id":28,"name":"兵庫県","population":5278050},{"id":29,"name":"奈良県","population":1385473},{"id":30,"name":"和歌山県","population":1087612},{"id":31,"name":"鳥取県","population":615722},{"id":32,"name":"島根県","population":784013},{"id":33,"name":"岡山県","population":1931086},{"id":34,"name":"広島県","population":2849226},{"id":35,"name":"山口県","population":1572803},{"id":36,"name":"徳島県","population":831498},{"id":37,"name":"香川県","population":995163},{"id":38,"name":"愛媛県","population":1515221},{"id":39,"name":"高知県","population":835269},{"id":40,"name":"福岡県","population":4811099},{"id":41,"name":"佐賀県","population":878071},{"id":42,"name":"長崎県","population":1563148},{"id":43,"name":"熊本県","population":1854743},{"id":44,"name":"大分県","population":1236855},{"id":45,"name":"宮崎県","population":1169376},{"id":46,"name":"鹿児島県","population":1819260},{"id":47,"name":"沖縄県","population":1222398}],"1985":[{"id":1,"name":"北海道","population":5679439},{"id":2,"name":"青森県","population":1524448},{"id":3,"name":"岩手県","population":1433606},{"id":4,"name":"宮城県","population":2176295},{"id":5,"name":"秋田県","population":1254032},{"id":6,"name":"山形県","population":1261683},{"id":7,"name":"福島県","population":2080304},{"id":8,"name":"茨城県","population":2725005},{"id":9,"name":"栃木県","population":1866039},{"id":10,"name":"群馬県","population":1921158},{"id":11,"name":"埼玉県","population":5863678},{"id":12,"name":"千葉県","population":5148163},{"id":13,"name":"東京都","population":11829363},{"id":14,"name":"神奈川県","population":7431974},{"id":15,"name":"新潟県","population":2478480},{"id":16,"name":"富山県","population":1118361},{"id":17,"name":"石川県","population":1152325},{"id":18,"name":"福井県","population":812192},{"id":19,"name":"山梨県","population":832832},{"id":20,"name":"長野県","population":2136934},{"id":21,"name":"岐阜県","population":2028507},{"id":22,"name":"静岡県","population":3574801},{"id":23,"name":"愛知県","population":6455173},{"id":24,"name":"三重県","population":1747407},{"id":25,"name":"滋賀県","population":1155844},{"id":26,"name":"京都府","population":2586574},{"id":27,"name":"大阪府","population":8668095},{"id":28,"name":"兵庫県","population":5141577},{"id":29,"name":"奈良県","population":1304866},{"id":30,"name":"和歌山県","population":1087799},{"id":31,"name":"鳥取県","population":616024},{"id":32,"name":"島根県","population":800003},{"id":33,"name":"岡山県","population":1916906},{"id":34,"name":"広島県","population":2799097},{"id":35,"name":"山口県","population":1601627},{"id":36,"name":"徳島県","population":834691},{"id":37,"name":"香川県","population":991275},{"id":38,"name":"愛媛県","population":1529983},{"id":39,"name":"高知県","population":839784},{"id":40,"name":"福岡県","population":4719259},{"id":41,"name":"佐賀県","population":880013},{"id":42,"name":"長崎県","population":1593968},{"id":43,"name":"熊本県","population":1837748},{"id":44,"name":"大分県","population":1250214},{"id":45,"name":"宮崎県","population":1175543},{"id":46,"name":"鹿児島県","population":1819270},{"id":47,"name":"沖縄県","population":1179097}],"1980":[{"id":1,"name":"北海道","population":5575989},{"id":2,"name":"青森県","population":1523907},{"id":3,"name":"岩手県","population":1421927},{"id":4,"name":"宮城県","population":2082320},{"id":5,"name":"秋田県","population":1256745},{"id":6,"name":"山形県","population":1251935},{"id":7,"name":"福島県","population":2035252},{"id":8,"name":"茨城県","population":2558004},{"id":9,"name":"栃木県","population":1792201},{"id":10,"name":"群馬県","population":1848577},{"id":11,"name":"埼玉県","population":5420482},{"id":12,"name":"千葉県","population":4735439},{"id":13,"name":"東京都","population":11618281},{"id":14,"name":"神奈川県","population":6838268},{"id":15,"name":"新潟県","population":2451355},{"id":16,"name":"富山県","population":1103459},{"id":17,"name":"石川県","population":1119304},{"id":18,"name":"福井県","population":794473},{"id":19,"name":"山梨県","population":804256},{"id":20,"name":"長野県","population":2083935},{"id":21,"name":"岐阜県","population":1968864},{"id":22,"name":"静岡県","population":3446864},{"id":23,"name":"愛知県","population":6221638},{"id":24,"name":"三重県","population":1686940},{"id":25,"name":"滋賀県","population":1079898},{"id":26,"name":"京都府","population":2527330},{"id":27,"name":"大阪府","population":8473446},{"id":28,"name":"兵庫県","population":4992984},{"id":29,"name":"奈良県","population":1209365},{"id":30,"name":"和歌山県","population":1073852},{"id":31,"name":"鳥取県","population":604221},{"id":32,"name":"島根県","population":809413},{"id":33,"name":"岡山県","population":1871147},{"id":34,"name":"広島県","population":2739150},{"id":35,"name":"山口県","population":1587079},{"id":36,"name":"徳島県","population":825261},{"id":37,"name":"香川県","population":978643},{"id":38,"name":"愛媛県","population":1506894},{"id":39,"name":"高知県","population":831090},{"id":40,"name":"福岡県","population":4553461},{"id":41,"name":"佐賀県","population":865574},{"id":42,"name":"長崎県","population":1590564},{"id":43,"name":"熊本県","population":1813131},{"id":44,"name":"大分県","population":1228945},{"id":45,"name":"宮崎県","population":1150493},{"id":46,"name":"鹿児島県","population":1784948},{"id":47,"name":"沖縄県","population":1106559}],"1975":[{"id":1,"name":"北海道","population":5338206},{"id":2,"name":"青森県","population":1468646},{"id":3,"name":"岩手県","population":1386518},{"id":4,"name":"宮城県","population":1955269},{"id":5,"name":"秋田県","population":1232474},{"id":6,"name":"山形県","population":1220401},{"id":7,"name":"福島県","population":1946056},{"id":8,"name":"茨城県","population":2342194},{"id":9,"name":"栃木県","population":1698002},{"id":10,"name":"群馬県","population":1756531},{"id":11,"name":"埼玉県","population":4821342},{"id":12,"name":"千葉県","population":4149231},{"id":13,"name":"東京都","population":11673555},{"id":14,"name":"神奈川県","population":6397748},{"id":15,"name":"新潟県","population":2391913},{"id":16,"name":"富山県","population":1070656},{"id":17,"name":"石川県","population":1069875},{"id":18,"name":"福井県","population":772391},{"id":19,"name":"山梨県","population":783063},{"id":20,"name":"長野県","population":2017367},{"id":21,"name":"岐阜県","population":1869372},{"id":22,"name":"静岡県","population":3308892},{"id":23,"name":"愛知県","population":5934543},{"id":24,"name":"三重県","population":1604533},{"id":25,"name":"滋賀県","population":985618},{"id":26,"name":"京都府","population":2424856},{"id":27,"name":"大阪府","population":8278925},{"id":28,"name":"兵庫県","population":4801614},{"id":29,"name":"奈良県","population":1083431},{"id":30,"name":"和歌山県","population":1043329},{"id":31,"name":"鳥取県","population":581309},{"id":32,"name":"島根県","population":795431},{"id":33,"name":"岡山県","population":1813508},{"id":34,"name":"広島県","population":2646324},{"id":35,"name":"山口県","population":1555006},{"id":36,"name":"徳島県","population":805372},{"id":37,"name":"香川県","population":961298},{"id":38,"name":"愛媛県","population":1464483},{"id":39,"name":"高知県","population":808948},{"id":40,"name":"福岡県","population":4292994},{"id":41,"name":"佐賀県","population":837568},{"id":42,"name":"長崎県","population":1570251},{"id":43,"name":"熊本県","population":1756086},{"id":44,"name":"大分県","population":1208570},{"id":45,"name":"宮崎県","population":1111623},{"id":46,"name":"鹿児島県","population":1723511},{"id":47,"name":"沖縄県","population":1042571}],"1970":[{"id":1,"name":"北海道","population":5184287},{"id":2,"name":"青森県","population":1427520},{"id":3,"name":"岩手県","population":1355447},{"id":4,"name":"宮城県","population":1819223},{"id":5,"name":"秋田県","population":1198897},{"id":6,"name":"山形県","population":1190367},{"id":7,"name":"福島県","population":1889813},{"id":8,"name":"茨城県","population":2143551},{"id":9,"name":"栃木県","population":1580007},{"id":10,"name":"群馬県","population":1658908},{"id":11,"name":"埼玉県","population":3866472},{"id":12,"name":"千葉県","population":3366624},{"id":13,"name":"東京都","population":11408071},{"id":14,"name":"神奈川県","population":5472247},{"id":15,"name":"新潟県","population":2325373},{"id":16,"name":"富山県","population":1029695},{"id":17,"name":"石川県","population":1002387},{"id":18,"name":"福井県","population":742511},{"id":19,"name":"山梨県","population":762029},{"id":20,"name":"長野県","population":1957457},{"id":21,"name":"岐阜県","population":1758954},{"id":22,"name":"静岡県","population":3089886},{"id":23,"name":"愛知県","population":5386163},{"id":24,"name":"三重県","population":1509177},{"id":25,"name":"滋賀県","population":889679},{"id":26,"name":"京都府","population":2250087},{"id":27,"name":"大阪府","population":7620480},{"id":28,"name":"兵庫県","population":4667928},{"id":29,"name":"奈良県","population":930198},{"id":30,"name":"和歌山県","population":1003463},{"id":31,"name":"鳥取県","population":568977},{"id":32,"name":"島根県","population":773575},{"id":33,"name":"岡山県","population":1707038},{"id":34,"name":"広島県","population":2496223},{"id":35,"name":"山口県","population":1511364},{"id":36,"name":"徳島県","population":791111},{"id":37,"name":"香川県","population":906660},{"id":38,"name":"愛媛県","population":1414436},{"id":39,"name":"高知県","population":786882},{"id":40,"name":"福岡県","population":3964696},{"id":41,"name":"佐賀県","population":820300},{"id":42,"name":"長崎県","population":1570778},{"id":43,"name":"熊本県","population":1723466},{"id":44,"name":"大分県","population":1198516},{"id":45,"name":"宮崎県","population":1051025},{"id":46,"name":"鹿児島県","population":1729007},{"id":47,"name":"沖縄県","population":945111}]};
+
+    // ========== 定数 ==========
+    const GEOJSON_URL = "https://raw.githubusercontent.com/dataofjapan/land/master/japan.geojson";
+    const YEARS = Object.keys(POPULATION_DATA).sort((a, b) => +b - +a);
+    const SVG_W = 960, SVG_H = 600;
+
+    // ========== DOM要素 ==========
+    const svg = d3.select("#map");
+    const tooltip = document.getElementById("tooltip");
+    const yearSelect = document.getElementById("yearSelect");
+
+    // ========== 年選択UIの初期化 ==========
+    YEARS.forEach(y => {
+      const opt = document.createElement("option");
+      opt.value = y;
+      opt.textContent = y + "年";
+      yearSelect.appendChild(opt);
+    });
+    yearSelect.value = YEARS[0]; // 最新年（2023）をデフォルト
+
+    // ========== 投影法の設定 ==========
+    const projection = d3.geoMercator()
+      .center([137, 35.5])
+      .scale(1600)
+      .translate([SVG_W / 2, SVG_H / 2]);
+
+    const path = d3.geoPath().projection(projection);
+
+    // ========== カラースケール（全年一貫した最大値で固定） ==========
+    const allPopulations = Object.values(POPULATION_DATA).flat().map(d => d.population);
+    const globalMax = d3.max(allPopulations);
+    const globalMin = 0;
+
+    const colorScale = d3.scaleSequential()
+      .domain([globalMin, globalMax])
+      .interpolator(d3.interpolateBlues);
+
+    // ========== 凡例の描画 ==========
+    function drawLegend() {
+      const legendSvg = d3.select("#legend");
+      const legendW = 300, legendH = 20, offsetX = 30, offsetY = 15;
+
+      const defs = legendSvg.append("defs");
+      const linearGradient = defs.append("linearGradient")
+        .attr("id", "legend-gradient")
+        .attr("x1", "0%").attr("x2", "100%");
+
+      const steps = 10;
+      d3.range(steps + 1).forEach(i => {
+        linearGradient.append("stop")
+          .attr("offset", `${(i / steps * 100)}%`)
+          .attr("stop-color", colorScale(globalMin + (globalMax - globalMin) * i / steps));
+      });
+
+      legendSvg.append("rect")
+        .attr("x", offsetX).attr("y", offsetY)
+        .attr("width", legendW).attr("height", legendH)
+        .style("fill", "url(#legend-gradient)")
+        .attr("rx", 3);
+
+      // 目盛り
+      const legendScale = d3.scaleLinear()
+        .domain([0, globalMax / 10000])
+        .range([offsetX, offsetX + legendW]);
+
+      const tickValues = [0, 300, 600, 900, 1200, 1500];
+      tickValues.forEach(v => {
+        const x = legendScale(v);
+        legendSvg.append("line")
+          .attr("x1", x).attr("x2", x)
+          .attr("y1", offsetY + legendH).attr("y2", offsetY + legendH + 4)
+          .attr("stroke", "#aaa").attr("stroke-width", 1);
+        legendSvg.append("text")
+          .attr("x", x).attr("y", offsetY + legendH + 14)
+          .attr("text-anchor", "middle")
+          .attr("font-size", "10px")
+          .attr("fill", "#aaa")
+          .text(v === 0 ? "0" : v);
+      });
+    }
+
+    // ========== ツールチップ ==========
+    function showTooltip(event, name, population, year) {
+      tooltip.innerHTML = `
+        <div class="name">${name}</div>
+        <div class="pop">人口: <strong>${population.toLocaleString()}</strong> 人</div>
+        <div class="pop">（${year}年）</div>
+      `;
+      tooltip.style.opacity = "1";
+      moveTooltip(event);
+    }
+
+    function moveTooltip(event) {
+      const x = event.clientX + 14;
+      const y = event.clientY - 10;
+      tooltip.style.left = x + "px";
+      tooltip.style.top = y + "px";
+    }
+
+    function hideTooltip() {
+      tooltip.style.opacity = "0";
+    }
+
+    // ========== 地図の色更新 ==========
+    function updateColors(year) {
+      const yearData = POPULATION_DATA[year] || [];
+      const popMap = new Map(yearData.map(d => [d.name, d.population]));
+
+      svg.selectAll(".prefecture")
+        .attr("fill", d => {
+          const name = d.properties.nam_ja;
+          const pop = popMap.get(name);
+          return pop != null ? colorScale(pop) : "#333";
+        })
+        .on("mouseover", (event, d) => {
+          const name = d.properties.nam_ja;
+          const pop = popMap.get(name);
+          if (pop != null) showTooltip(event, name, pop, year);
+        })
+        .on("mousemove", moveTooltip)
+        .on("mouseout", hideTooltip);
+    }
+
+    // ========== GeoJSON読み込みと地図初期描画 ==========
+    d3.json(GEOJSON_URL).then(geojson => {
+      svg.selectAll(".prefecture")
+        .data(geojson.features)
+        .join("path")
+        .attr("class", "prefecture")
+        .attr("d", path)
+        .attr("fill", "#333");
+
+      drawLegend();
+      updateColors(yearSelect.value);
+
+      // 年変更イベント
+      yearSelect.addEventListener("change", () => {
+        updateColors(yearSelect.value);
+      });
+
+    }).catch(err => {
+      console.error("GeoJSON読み込みエラー:", err);
+      svg.append("text")
+        .attr("x", SVG_W / 2).attr("y", SVG_H / 2)
+        .attr("text-anchor", "middle")
+        .attr("fill", "#ff6b6b")
+        .attr("font-size", "16px")
+        .text("地図データの読み込みに失敗しました。インターネット接続を確認してください。");
+    });
+  </script>
+</body>
+</html>
